@@ -129,18 +129,5 @@ def print_lunar_info(lunar_info, type = 'table'):
 
     return
 
-
-
-# 测试日期
-# test_date = datetime.datetime(1992, 1, 16, 10, 35)
-
-# 获取并打印农历信息
-# lunar_info = get_lunar_info(test_date, 1)
-# if lunar_info['code'] != 0:
-#     print(lunar_info['msg'])
-#     exit(1)
-# print_lunar_info(lunar_info.get('data'))
-
-
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=5000)
