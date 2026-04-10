@@ -129,5 +129,94 @@ def print_lunar_info(lunar_info, type = 'table'):
 
     return
 
+@app.route('/filter')
+def filter_page():
+    return send_from_directory('.', 'filter.html')
+
+@app.route('/date_filter', methods=['GET'])
+def date_filter_api():
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+    lunar_type = request.args.get('type', default=1, type=int)
+
+    def parse_filter(param):
+        val = request.args.get(param, '')
+        return set(v for v in val.split(',') if v)
+
+    clash_filter = parse_filter('clash')
+    stars_filter = parse_filter('stars')
+    officer_filter = parse_filter('officer')
+    san_he_filter = parse_filter('san_he')
+    liu_he_filter = parse_filter('liu_he')
+
+    if not start_str or not end_str:
+        return jsonify({'code': 3, 'msg': '缺少日期参数'})
+
+    try:
+        start_date = datetime.datetime.strptime(start_str, '%Y-%m-%d')
+        end_date = datetime.datetime.strptime(end_str, '%Y-%m-%d')
+    except ValueError:
+        return jsonify({'code': 4, 'msg': '无效的日期格式，请使用 YYYY-MM-DD'})
+
+    if end_date < start_date:
+        return jsonify({'code': 5, 'msg': '结束日期不能早于开始日期'})
+
+    if (end_date - start_date).days > 365:
+        return jsonify({'code': 6, 'msg': '日期范围不能超过366天'})
+
+    results = []
+    current = start_date
+
+    while current <= end_date:
+        try:
+            if lunar_type == 1:
+                lunar = cnlunar.Lunar(current, godType='8char')
+            else:
+                lunar = cnlunar.Lunar(current, godType='8char', year8Char='beginningOfSpring')
+
+            clash = lunar.chineseZodiacClash
+            stars = lunar.today28Star
+            officer, officer_god, day_type = lunar.get_today12DayOfficer()
+            san_he = lunar.zodiacMark3List
+            liu_he = lunar.zodiacMark6
+
+            match = True
+            if clash_filter and clash not in clash_filter:
+                match = False
+            if match and stars_filter and stars not in stars_filter:
+                match = False
+            if match and officer_filter and officer not in officer_filter:
+                match = False
+            if match and san_he_filter and not san_he_filter.intersection(set(san_he)):
+                match = False
+            if match and liu_he_filter and liu_he not in liu_he_filter:
+                match = False
+
+            if match:
+                results.append({
+                    'date': current.strftime('%Y-%m-%d'),
+                    'weekday': lunar.weekDayCn,
+                    'lunar': f'{lunar.lunarMonthCn}{lunar.lunarDayCn}',
+                    'clash': clash,
+                    'stars': stars,
+                    'officer': officer,
+                    'officer_god': officer_god,
+                    'day_type': day_type,
+                    'san_he': san_he,
+                    'liu_he': liu_he,
+                    'level_name': lunar.todayLevelName,
+                    'good_god': lunar.goodGodName,
+                    'bad_god': lunar.badGodName,
+                    'good_thing': lunar.goodThing,
+                    'bad_thing': lunar.badThing,
+                })
+        except Exception as e:
+            print(f"Error computing lunar for {current.strftime('%Y-%m-%d')}: {e}")
+
+        current += datetime.timedelta(days=1)
+
+    return jsonify({'code': 0, 'msg': 'ok', 'data': results, 'total': len(results)})
+
+
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=5000)
